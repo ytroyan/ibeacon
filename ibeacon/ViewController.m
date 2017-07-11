@@ -28,13 +28,32 @@
     _locMan=[[CLLocationManager alloc]init];
     _locMan.delegate=self;
     [_locMan requestAlwaysAuthorization];
+    [self startMonitoring];
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
 
     [center requestAuthorizationWithOptions:UNAuthorizationOptionBadge | UNAuthorizationOptionSound | UNAuthorizationOptionAlert  completionHandler:^(BOOL granted, NSError * _Nullable error) {
 
     }];
 
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(enterBackground) name:UIApplicationDidEnterBackgroundNotification object:nil];
+
+
     
+}
+
+-(void)enterBackground{
+    NSLog(@"enterBackground");
+    [self startMonitoring];
+
+}
+-(void)startMonitoring{
+
+    _region=[[CLBeaconRegion alloc]initWithProximityUUID:[[NSUUID alloc]initWithUUIDString:@"E2C56DB5-DFFB-48D2-B060-D0F5A71096E3"]  identifier:@"BeaconRegion"];
+    _region.notifyOnEntry=YES;
+    _region.notifyOnExit=YES;
+    _region.notifyEntryStateOnDisplay=YES;
+    [_locMan startMonitoringForRegion:_region];
+
 }
 
 
@@ -44,42 +63,32 @@
 
 
 - (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status{
+
     switch (status) {
         case kCLAuthorizationStatusAuthorizedAlways:
-            _region=[[CLBeaconRegion alloc]initWithProximityUUID:[[NSUUID alloc]initWithUUIDString:@"E2C56DB5-DFFB-48D2-B060-D0F5A71096E3"]  identifier:@"BeaconRegion"];
-            _region.notifyOnEntry=YES;
-            _region.notifyOnExit=YES;
-            _region.notifyEntryStateOnDisplay=YES;
-            [_locMan startRangingBeaconsInRegion:_region];
-            [_locMan startMonitoringForRegion:_region];
-            [_locMan requestStateForRegion:_region];
+            manager.allowsBackgroundLocationUpdates = true;
+            [self startMonitoring];
             break;
-
-        default:
+    default:
             break;
     }
+
 }
 
-- (void)locationManager:(CLLocationManager *)manager
-rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region
-              withError:(NSError *)error{
-    
-}
+
 
 - (void)locationManager:(CLLocationManager *)manager
         didRangeBeacons:(NSArray<CLBeacon *> *)beacons inRegion:(CLBeaconRegion *)region{
-    NSLog(@"didRangeBeacons %i", beacons.count);
-    [self sendLocalNotification:@"didRangeBeacons"
-                        message:[NSString stringWithFormat:@"%@", region.identifier]
-                     identifier:@"didRangeBeacons"];
+    NSLog(@"didRangeBeacons %lu", (unsigned long)beacons.count);
 }
 
 - (void)locationManager:(CLLocationManager *)manager
       didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region{
-    NSLog(@"didDetermineState %@, %i", region.identifier, state);
-//    [self sendLocalNotification:@"didDetermineState"
-//                        message:[NSString stringWithFormat:@"%@", region.identifier]
-//                     identifier:@"didDetermineState"];
+
+    NSLog(@"didDetermineState %@, %li", region.identifier, (long)state);
+    [self sendLocalNotification:@"didDetermineState"
+                        message:[NSString stringWithFormat:@"%@, state=%li", region.identifier, (long)state]
+                     identifier:@"didDetermineState"];
 }
 
 - (void)locationManager:(CLLocationManager *)manager
@@ -89,6 +98,7 @@ rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region
     [self sendLocalNotification:@"didEnterRegion"
                         message:[NSString stringWithFormat:@"%@", region.identifier]
                      identifier:@"didEnterRegion"];
+      [_locMan startRangingBeaconsInRegion:(CLBeaconRegion*)region];
 
 }
 
@@ -100,6 +110,7 @@ rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region
     [self sendLocalNotification:@"didExitRegion"
                         message:[NSString stringWithFormat:@"%@", region.identifier]
                      identifier:@"didExitRegion"];
+    [_locMan stopRangingBeaconsInRegion:(CLBeaconRegion*)region];
 
 }
 
@@ -109,17 +120,7 @@ rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region
 
     if ([[UIApplication sharedApplication] applicationState] == UIApplicationStateBackground) {
 
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-        [center getDeliveredNotificationsWithCompletionHandler:^(NSArray<UNNotification *> * _Nonnull notifications) {
-            if (notifications.count < 1) {
-                return;
-            }
-            NSArray * requests = [notifications valueForKey:@"request"];
-            NSArray * identifiers = [requests valueForKey:@"identifier"];
-            if ([identifiers containsObject:identifier]) {
-                return;
-            }
-            UNMutableNotificationContent *objNotificationContent = [[UNMutableNotificationContent alloc] init];
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];            UNMutableNotificationContent *objNotificationContent = [[UNMutableNotificationContent alloc] init];
             objNotificationContent.title = title;
             objNotificationContent.body = message;
             objNotificationContent.sound=[UNNotificationSound defaultSound];
@@ -135,11 +136,34 @@ rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region
                     NSLog(@"Local Notification failed");
                 }
             }];
-        }];
 
+
+    } else {
+        [self showMessage:message
+                withTitle:title
+                     type:UIAlertControllerStyleAlert
+                cancelBtn:@"Ok"];
     }
 
 
+}
+
+-(void)showMessage:(NSString *)message
+         withTitle:(NSString *)title
+              type:(UIAlertControllerStyle)type
+         cancelBtn:(NSString *)cancelBtn
+{
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                   message:message
+                                                            preferredStyle:type];
+
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancelBtn
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:^(UIAlertAction * _Nonnull action) {
+                                                         }];
+
+    [alert addAction:cancelAction];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end
