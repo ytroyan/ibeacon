@@ -48,7 +48,7 @@
 }
 -(void)startMonitoring{
 
-    _region=[[CLBeaconRegion alloc]initWithProximityUUID:[[NSUUID alloc]initWithUUIDString:@"E2C56DB5-DFFB-48D2-B060-D0F5A71096E3"]  identifier:@"BeaconRegion"];
+    _region=[[CLBeaconRegion alloc]initWithProximityUUID:[[NSUUID alloc]initWithUUIDString:@"699EBC80-E1F3-11E3-9A0F-0CF3EE3BC012"]  identifier:@"BeaconRegion"];
     _region.notifyOnEntry=YES;
     _region.notifyOnExit=YES;
     _region.notifyEntryStateOnDisplay=YES;
